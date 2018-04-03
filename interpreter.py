@@ -7,6 +7,8 @@ class Machine:
         self.data_pointer = 0
         self.instruction_pointer = -1
         self.buffer = [0]*20
+        self.output = None
+        self.flag = False
 
     def inc(self):
         self.memory[self.data_pointer] += 1
@@ -25,6 +27,10 @@ class Machine:
         for c in range(19):
             self.buffer[c] = self.buffer[c+1]
         self.buffer[19] = 0
+
+    def write(self):
+        self.output = self.memory[self.data_pointer]
+        self.flag = True
 
     def in_loop(self):
         if self.memory[self.data_pointer] <= 0:
@@ -63,6 +69,10 @@ class Machine:
             self.in_loop()
         elif command == ']':
             self.out_loop()
+        elif command == ',':
+            self.read()
+        elif command == '.':
+            self.write()
         else:
             self.instruction_pointer += 1
 
@@ -71,3 +81,7 @@ class Machine:
         self.memory = [0]*100
         self.instruction_pointer = 0
         self.data_pointer = 0
+
+    def load(self, line):
+        for i, char in enumerate(line[:20]):
+            self.buffer[i] = ord(char)

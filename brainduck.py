@@ -9,23 +9,12 @@ colors = ['#90a955', '#31572c', '#47772d', '#132a13']
 
 class GUI(tk.Tk):
     def __init__(self, machine):
-        # Initialize GUI
         tk.Tk.__init__(self)
-
-        # Set screens
         self.main_screen = MainScreen(self, machine)
         self.main_screen.pack(fill=tk.BOTH, expand=True)
-        # Set main vault
-
-
-        # Set basic parameters
         self.title('BioLock')
-        self.geometry('960x820')
-        # self.icon = tk.PhotoImage(file='graphics/icon.gif')
-        # self.tk.call('wm', 'iconphoto', self._w, self.icon)
         self.minsize(width=800, height=800)
         self.protocol('WM_DELETE_WINDOW', lambda: self.on_closing())
-
         menubar = tk.Menu(self)
         menubar.add_command(label="Hello!")
         menubar.add_command(label="Quit!")
@@ -108,7 +97,11 @@ class MainScreen(tk.Frame):
         self.upper_frame = tk.Frame(self, bg='#1212ff')
 
         self.editor = tk.Text(self.upper_frame)
-        self.terminal = tk.Text(self.upper_frame, bg='#000000',fg='#ffffff')
+        self.right_frame = tk.Frame(self.upper_frame)
+        self.terminal = tk.Text(self.right_frame, bg='#000000',fg='#ffffff')
+        self.input = tk.Entry(self.right_frame)
+        self.input.bind('<Return>', self.go_entry)
+        self.buffer = Buffer(self.right_frame)
 
         self.table = Table(self, 10, 10)
         self.table.highlight(0, 0, '#ff0000')
@@ -151,18 +144,26 @@ class MainScreen(tk.Frame):
         self.toolbar.pack(fill=tk.BOTH, side=tk.TOP)
         self.upper_frame.pack(fill=tk.BOTH)
         self.editor.pack(side=tk.LEFT)
-        self.terminal.pack(side=tk.RIGHT)
+        self.right_frame.pack(side=tk.RIGHT)
+        self.terminal.pack()
+        self.input.pack()
+        self.buffer.pack()
         self.table.pack(fill=tk.BOTH)
 
     def step(self, _):
         p = self.machine.data_pointer
         self.machine.tick()
         self.update_memory(p)
+        self.update_buffer()
+        if self.machine.flag:
+            self.terminal.insert(tk.END, chr(self.machine.output))
+            self.machine.flag = False
+        self.terminal.update()
 
     def update_memory(self, p):
-        pw = p//10
-        ph = p%10
-        self.table.highlight(pw,ph,'#aaaaaa')
+        pw = p // 10
+        ph = p % 10
+        self.table.highlight(pw, ph, '#aaaaaa')
         w = self.machine.data_pointer//10
         h = self.machine.data_pointer % 10
         self.table.highlight(w, h, '#ff0000')
@@ -171,16 +172,29 @@ class MainScreen(tk.Frame):
                 self.table.set(x, y, self.machine.memory[x*10+y])
         self.table.update()
 
+    def update_buffer(self):
+        for i in range(20):
+            self.buffer.set(0, i, self.machine.buffer[i])
+            if self.machine.buffer[i] == 0:
+                self.buffer.set(1, i, '\\0')
+            else:
+                self.buffer.set(1, i, chr(self.machine.buffer[i]))
+        self.buffer.update()
 
-    def compile(self,_):
+    def compile(self, _):
         contents = self.editor.get(1.0, tk.END)
         self.machine.program = contents
 
     def run(self, _):
-        for i in range(len(self.machine.program)-1):
-            print(self.machine.program[i])
+        while self.machine.instruction_pointer != len(self.machine.program):
             self.step('a')
-            # self.after(300)
+            # self.after(100)
+
+    def go_entry(self, _):
+        stri = self.input.get()
+        self.machine.load(stri)
+        self.update_buffer()
+        self.input.delete(0, 'end')
 
 
 class Table(tk.Frame):
@@ -208,6 +222,38 @@ class Table(tk.Frame):
     def highlight(self, row, column, color):
         widget = self._widgets[row][column]
         widget.configure(bg=color)
+
+
+class Buffer(tk.Frame):
+    def __init__(self, parent, rows=2, columns=20):
+        # use black background so it "peeks through" to
+        # form grid lines
+        tk.Frame.__init__(self, parent, background="black")
+        self._widgets = []
+        for row in range(rows):
+            current_row = []
+            for column in range(columns):
+                label = tk.Label(self, text="0",
+                                 borderwidth=0, width=10, bg='#aaaaaa')
+                label.grid(row=row, column=column, sticky="nsew", padx=1, pady=1)
+                current_row.append(label)
+            self._widgets.append(current_row)
+
+        for column in range(columns):
+            self.grid_columnconfigure(column, weight=1)
+
+    def set(self, row, column, value):
+        widget = self._widgets[row][column]
+        widget.configure(text=value)
+
+    def highlight(self, row, column, color):
+        widget = self._widgets[row][column]
+        widget.configure(bg=color)
+
+    def load(self, line):
+        for i, char in enumerate(line[:20]):
+            self._widgets[0][i].configure(text=ord(char))
+            self._widgets[1][i].configure(text=char)
 
 
 mach = Machine('+++++++>+++++')
